@@ -19,6 +19,9 @@
 
 #ifndef _WIN32
 #include "become_daemon.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #endif
 
 namespace po = boost::program_options;
@@ -43,15 +46,18 @@ BOOL WINAPI console_ctrl_handler( DWORD ctrl_type )
 }
 #endif // defined(_WIN32)
 
+static const char *optString = "h:p:d:";
 
 int main(int argc, char* argv[])
 {
-    po::options_description desc( "Allowed options" );
     std::string hostAddress;
     std::string hostPort;
     std::string rootDirectory;
     bool demonize = true;
 
+#ifdef _WIN32        
+    
+    po::options_description desc( "Allowed options" );
     desc.add_options()
          ("host,h", po::value<std::string>( &hostAddress )->default_value( "127.0.0.1" ), "Host address")
          ("port,p", po::value<std::string>( &hostPort )->default_value( "8080" ), "Host port")
@@ -69,6 +75,33 @@ int main(int argc, char* argv[])
          std::cout << desc << "\n";
          return 1;
     }
+#else
+
+    int opt;
+
+    opt = getopt( argc, argv, optString  );
+
+    while( opt != -1 )
+    {
+        switch (opt )
+        {
+            case 'h':
+                hostAddress = optarg;
+                break;
+
+            case 'p':
+                hostPort = optarg;
+                break;
+            case 'd':
+                rootDirectory = optarg;
+                break;
+            default:
+                break;
+        }
+
+        opt = getopt( argc, argv, optString  );
+    }
+#endif
 
 #if defined( _WIN32 )
          
