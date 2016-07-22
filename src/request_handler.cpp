@@ -37,11 +37,16 @@ void request_handler::handle_request(const request& req, reply& rep)
 
   // Request path must be absolute and not contain "..".
   if (request_path.empty() || request_path[0] != '/'
-      || request_path.find("..") != std::string::npos
-      || request_path.find( '?' ) != std::string::npos )
+      || request_path.find("..") != std::string::npos )
   {
     rep = reply::stock_reply(reply::bad_request);
     return;
+  }
+
+  int paramPosition = request_path.find( '?' );
+  if( paramPosition != std::string::npos )
+  {
+       request_path = request_path.substr( 0, paramPosition );
   }
 
   // If path ends in slash (i.e. is a directory) then add "index.html".
