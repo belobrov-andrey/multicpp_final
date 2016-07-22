@@ -9,7 +9,8 @@ find_package( Boost REQUIRED COMPONENTS system thread date_time filesystem regex
 IF ( ${CMAKE_SYSTEM_NAME} MATCHES "Linux" )
     #link_directories( "/usr/lib/i386-linux-gnu"  )
     #include_directories( "/usr/lib/i386-linux-gnu"  )
-    set( CMAKE_CXX_FLAGS "-finput-charset=CP1251" )
+    #set( CMAKE_CXX_FLAGS "-finput-charset=CP1251" )
+    set( CMAKE_CXX_COMPILER=/usr/bin/clang++ )
     find_package (Threads)
 ENDIF ( ${CMAKE_SYSTEM_NAME} MATCHES "Linux" )
 
