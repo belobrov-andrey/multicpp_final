@@ -55,26 +55,42 @@ server::server( const std::string& address, const std::string& port,
 {
 }
 
-void server::run()
+namespace
 {
-  // The io_service::run() call will block until all asynchronous operations
-  // have finished. While the server is running, there is always at least one
-  // asynchronous operation outstanding: the asynchronous accept call waiting
-  // for new incoming connections.
-  //io_service_.run();
+     int set_nonblock( SOCKET fd )
+     {
+          int flags;
+#if defined( O_NONBLOCK )
+          if ( -1 == ( flags = fcntl( fd, F_GETFL, 0 )))
+          {
+               flags = 0;
+          }
+          return fcntl( fd, F_SETFL, flags | O_NONBLOCK )
+#else
+          flags = 1;
+#ifndef _WIN32
+          return ioctl( fd, FIOBIO, &flags );
+#else
+          unsigned long longFlags = 1;
+          return ioctlsocket( fd, FIONBIO, &longFlags );
+#endif
 
-     // Start working threads
+#endif
 
-     //boost::lock_guard<boost::mutex> lk( workerThreadsMutex_ );
-     // matching function for call to 'accept'
-     //
-               
+     }
+
+}
+
+void server::run()
+{              
      SOCKET listeningSocket = socket( AF_INET, SOCK_STREAM, 0 );
      if( listeningSocket == 0 )
      {
           std::cerr << "Unable to create listening socket." << std::endl;
           return;
      }
+
+     set_nonblock( listeningSocket );
 
      sockaddr_in serv_addr;
      serv_addr.sin_family = AF_INET;
@@ -114,10 +130,6 @@ void server::run()
           return;
      }
 
-             
-     // создание клиентской sockaddr_in где есть IP & Port клиента
-
-
      unsigned int hardwareConcurrency = boost::thread::hardware_concurrency();
      unsigned int threadsNumber = std::max( 2u, hardwareConcurrency );     for( int i = 0; i < threadsNumber; i++ )
      {
@@ -151,24 +163,40 @@ void server::run()
                
                client_sock = accept( listeningSocket, (struct sockaddr *)&client_addr, &size_client_addr );
 
+               while( client_sock )
+               {
+                    connection_ptr newConnection_( new connection( io_service_, request_handler_ ) );
+
+                    boost::system::error_code ec;
+                    newConnection_->socket().assign( boost::asio::ip::tcp::v4(), client_sock, ec );
+
+                    if( ec != boost::system::errc::success )
+                    {
+                         break;
+                    }
+
+                    {
+                         boost::lock_guard< boost::mutex > lk( connectionsMutex_ );
+
+                         newConnections_.push( newConnection_ );
+                         connectionsCondition.notify_one();
+                    }
+
+                    client_sock = accept( listeningSocket, (struct sockaddr *)&client_addr, &size_client_addr );
+               }
+               
                if( !client_sock )
                {
-                    break;
+#ifndef _WIN32
+                    if ( errno != EWOULDBLOCK )
+#else
+                    
+                    if( WSAGetLastError() != WSAEWOULDBLOCK )
+#endif
+                    {
+                         break;
+                    }
                }
-
-               connection_ptr newConnection_( new connection( io_service_, request_handler_ ) );
-
-               boost::system::error_code ec;
-               newConnection_->socket().assign( boost::asio::ip::tcp::v4(), client_sock, ec );
-
-               if( ec != boost::system::errc::success )
-               {
-                    break;
-               }
-
-               boost::lock_guard< boost::mutex > lk( connectionsMutex_ );
-               newConnections_.push( newConnection_ );
-               connectionsCondition.notify_one();      
           } 
           else
           {
